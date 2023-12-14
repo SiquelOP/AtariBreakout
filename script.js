@@ -8,7 +8,7 @@ const startScreen = document.querySelector(".start-screen");
 const timeout = document.querySelector(".timeout");
 const timeoutH1 = document.querySelector(".timeout > h1");
 
-const blocks = [];
+let blocks;
 const padding = 5;
 let blockWidth;
 const blockHeight = 30;
@@ -35,7 +35,7 @@ class Vector2 {
   }
 }
 
-let velocity = new Vector2(10, 10);
+let velocity = new Vector2(5, 5);
 let paddleVelocity = new Vector2(0, 0);
 
 const colors = ["#cee3dc", "#9EC8B9", "#5C8374", "#1B4242"];
@@ -50,8 +50,20 @@ let ballPos;
 let paddlePos;
 
 let points = 0;
+let gamePaused = false;
+let itrr = 0;
 
 const prepareGame = async () => {
+  ctx.clearRect(0, 0, myCanvas.width, myCanvas.height);
+  document.querySelector(".game-over").classList.remove("active");
+  
+  points = 0;
+  itrr = 0;
+  timeoutH1.textContent = 5;
+  gamePaused = false;
+
+  blocks = [];
+
   blockWidth = (myCanvas.width - (cols - 1) * padding) / cols;
   ballRadius = blockWidth / 16;
 
@@ -88,8 +100,6 @@ const prepareGame = async () => {
   timeout.classList.add("numbers");
   myInterval = setInterval(countDown, 1000);
 };
-
-let itrr = 0;
 
 const countDown = () => {
   if (itrr >= 5) {
@@ -138,7 +148,7 @@ const drawBall = () => {
   if (ballPos.x + ballRadius * 2 >= myCanvas.width) velocity.changeDirX();
   if (ballPos.x <= 0) velocity.changeDirX();
 
-  if (ballPos.y + ballRadius * 2 >= myCanvas.height) gameOver();// Dopisz tutaj że koniec gry
+  if (ballPos.y + ballRadius * 2 >= myCanvas.height) gameOver();
   if (ballPos.y <= 0) velocity.changeDirY();
 
   for (let i = 0; i < rows; i++) {
@@ -194,7 +204,13 @@ const drawBall = () => {
 };
 
 const drawPaddle = () => {
-  paddlePos.add(paddleVelocity);
+  if ( (paddleVelocity.x > 0 && paddlePos.x + paddleWidth + paddleVelocity.x > myCanvas.width) || (paddleVelocity.x < 0 && paddlePos.x + paddleVelocity.x < 0) ) {
+    paddleVelocity.x = 0;
+  } 
+  
+  else {
+    paddlePos.add(paddleVelocity);
+  }
   
   ctx.beginPath();
   ctx.rect(
@@ -209,22 +225,12 @@ const drawPaddle = () => {
 };
 
 const whichKey = (event) => {
-  if(event.key == 'd' || event.key == "ArrowRight") {
-    if ( paddlePos.x + paddleWidth >= myCanvas.width) {
-      paddleVelocity.x = 0;
-    }
-    else {
-      paddleVelocity.x = 15;
-    }
+  if (event.key == 'd' || event.key == "ArrowRight") {
+    paddleVelocity.x = 15;
   }
 
-  if(event.key == 'a' || event.key == "ArrowLeft") {
-    if ( paddlePos.x <= 1) {
-      paddleVelocity.x = 0;
-    }
-    else {
-      paddleVelocity.x = -15;
-    }
+  if (event.key == 'a' || event.key == "ArrowLeft") {
+    paddleVelocity.x = -15;
   }
 }
 
@@ -235,8 +241,6 @@ const removeVelocity = () => {
 document.addEventListener("keydown", whichKey);
 document.addEventListener("keyup", removeVelocity);
 
-
-
 const randomNumber = () => {
   let temp = 0;
   temp = Math.round(Math.random() * (2) );
@@ -245,13 +249,27 @@ const randomNumber = () => {
   }
 };
 
-let gamePaused = false;
+const isOver = () => {
+  let temp = 0;
+  for ( let i = 0; i < rows; i++ ) {
+    for ( let j = 0; j < cols; j++ ) {
+      if ( blocks[i][j].visible == true ) temp++;
+    }
+  }
+
+  if ( temp != 0 ) return;
+
+  gameWon();
+}
+
 const startGame = () => {
   ctx.clearRect(0, 0, myCanvas.width, myCanvas.height);
 
   drawBall();
   draw();
   drawPaddle();
+
+  isOver();
 
   if (!gamePaused) {
     requestAnimationFrame(startGame);
@@ -262,6 +280,13 @@ const gameOver = () => {
   gamePaused = true;
   document.querySelector(".game-over").classList.add("active");
   let pointsElem = document.querySelector(".points");
-  pointsElem.innerText = points;
+  pointsElem.textContent = points;
   pointsElem.style.color = "white";
+}
+
+const gameWon = () => {
+  gamePaused = true;
+
+  document.querySelector(".end-screen").classList.add("victory");
+  document.querySelector(".points2").textContent = " " + points;
 }
