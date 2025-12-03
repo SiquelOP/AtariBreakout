@@ -33,6 +33,16 @@ class Vector2 {
   changeDirY() {
     this.y *= -1;
   }
+
+  magnitude() {
+    return Math.sqrt(this.x * this.x + this.y * this.y);
+  }
+
+  normalize() {
+    const mag = this.magnitude();
+    if (mag === 0) return new Vector2(0, 0);
+    return new Vector2(this.x / mag, this.y / mag);
+  }
 }
 
 let velocity = new Vector2(5, 5);
@@ -72,8 +82,8 @@ const prepareGame = async () => {
   paddleWidth = blockWidth * 1.5;
 
   ballPos = new Vector2(
-    myCanvas.width / 2 - ballRadius,
-    myCanvas.height / 3 - ballRadius
+    myCanvas.width / 2,
+    myCanvas.height / 3
   );
 
   paddlePos = new Vector2(
@@ -133,7 +143,7 @@ const draw = () => {
       let temp = blocks[i][j];
 
       if (!temp.visible) continue;
-      if ( blocks[i][j]. durability <= 0) blocks[i][j].visible = false;
+      if (blocks[i][j].durability <= 0) blocks[i][j].visible = false;
 
       ctx.beginPath();
       ctx.rect(temp.x, temp.y, blockWidth, blockHeight);
@@ -145,12 +155,14 @@ const draw = () => {
 };
 
 const drawBall = () => {
-  if (ballPos.x + ballRadius * 2 >= myCanvas.width) velocity.changeDirX();
-  if (ballPos.x <= 0) velocity.changeDirX();
+  // Wall collision detection - account for ball radius on all edges
+  if (ballPos.x + ballRadius >= myCanvas.width) velocity.changeDirX();
+  if (ballPos.x - ballRadius <= 0) velocity.changeDirX();
 
-  if (ballPos.y + ballRadius * 2 >= myCanvas.height) gameOver();
-  if (ballPos.y <= 0) velocity.changeDirY();
+  if (ballPos.y + ballRadius >= myCanvas.height) gameOver();
+  if (ballPos.y - ballRadius <= 0) velocity.changeDirY();
 
+  // Block collision detection
   for (let i = 0; i < rows; i++) {
     for (let j = 0; j < cols; j++) {
       if (blocks[i][j].visible) {
@@ -159,7 +171,11 @@ const drawBall = () => {
         const blockTop = blocks[i][j].y;
         const blockBottom = blocks[i][j].y + blockHeight;
 
-        if ( ballPos.x + ballRadius >= blockLeft && ballPos.x - ballRadius <= blockRight && ballPos.y + ballRadius >= blockTop && ballPos.y - ballRadius <= blockBottom ) {
+        // Check if ball collides with block (accounting for radius)
+        const ballCollidesX = ballPos.x + ballRadius >= blockLeft && ballPos.x - ballRadius <= blockRight;
+        const ballCollidesY = ballPos.y + ballRadius >= blockTop && ballPos.y - ballRadius <= blockBottom;
+        
+        if (ballCollidesX && ballCollidesY) {
             switch (blocks[i][j].durability) {
               case 4:
                 points += 50;
@@ -173,30 +189,66 @@ const drawBall = () => {
               case 1: 
                 points += 100;
             }
-            if ( ballPos.x >= blockLeft && ballPos.x <= blockRight) {
+            
+            // Determine which side of the block was hit and bounce accordingly
+            // Only decrement durability once per collision
+            const ballCenterInBlockX = ballPos.x >= blockLeft && ballPos.x <= blockRight;
+            const ballCenterInBlockY = ballPos.y >= blockTop && ballPos.y <= blockBottom;
+            
+            if (ballCenterInBlockX) {
               velocity.changeDirY();
-              blocks[i][j].durability -= 1;
-              console.log("Change X");
+            } else if (ballCenterInBlockY) {
+              velocity.changeDirX();
+            } else {
+              // Corner hit - bounce both directions
+              velocity.changeDirX();
+              velocity.changeDirY();
             }
             
-            if ( ballPos.y <= blockBottom && ballPos.y >= blockTop) {
-              velocity.changeDirX();
-              blocks[i][j].durability -= 1;
-              console.log("Change Y");
-            }
+            blocks[i][j].durability -= 1;
         }
       }
     }
   }
 
-  if(ballPos.x >= paddlePos.x && ballPos.x <= paddlePos.x + paddleWidth && ballPos.y >= paddlePos.y) {
-    velocity.changeDirY();
+  // Paddle collision detection with angled bounces and velocity transfer
+  const paddleTop = paddlePos.y;
+  const paddleLeft = paddlePos.x;
+  const paddleRight = paddlePos.x + paddleWidth;
+  
+  if (ballPos.x + ballRadius >= paddleLeft && 
+      ballPos.x - ballRadius <= paddleRight && 
+      ballPos.y + ballRadius >= paddleTop && 
+      ballPos.y - ballRadius <= paddleTop + paddleHeight) {
+    
+    // Prevent ball from getting stuck inside paddle
+    ballPos.y = paddleTop - ballRadius;
+    
+    // Calculate where on the paddle the ball hit (normalized -1 to 1)
+    const paddleCenter = paddlePos.x + paddleWidth / 2;
+    const hitPosition = (ballPos.x - paddleCenter) / (paddleWidth / 2);
+    
+    // Get current speed
+    const speed = velocity.magnitude();
+    
+    // Calculate new angle based on hit position
+    // Center hit = 90 degrees (straight up), edge hit = ~45 degrees
+    const maxAngle = Math.PI / 3; // 60 degrees max deflection from vertical
+    const angle = hitPosition * maxAngle;
+    
+    // Set new velocity based on angle (always bounce up)
+    velocity.x = speed * Math.sin(angle);
+    velocity.y = -Math.abs(speed * Math.cos(angle));
+    
+    // Add paddle velocity influence (friction/transfer)
+    const paddleInfluence = 0.3; // 30% of paddle velocity transferred
+    velocity.x += paddleVelocity.x * paddleInfluence;
   }
 
   ballPos.add(velocity);
 
   ctx.beginPath();
-  ctx.arc(ballPos.x, ballPos.y, ballRadius * 2, 0, Math.PI * 2);
+  ctx.arc(ballPos.x, ballPos.y, ballRadius, 0, Math.PI * 2);
   ctx.fillStyle = "#FFFFFF";
   ctx.fill();
   ctx.stroke();
