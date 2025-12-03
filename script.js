@@ -143,7 +143,7 @@ const draw = () => {
       let temp = blocks[i][j];
 
       if (!temp.visible) continue;
-      if ( blocks[i][j]. durability <= 0) blocks[i][j].visible = false;
+      if (blocks[i][j].durability <= 0) blocks[i][j].visible = false;
 
       ctx.beginPath();
       ctx.rect(temp.x, temp.y, blockWidth, blockHeight);
@@ -172,7 +172,10 @@ const drawBall = () => {
         const blockBottom = blocks[i][j].y + blockHeight;
 
         // Check if ball collides with block (accounting for radius)
-        if ( ballPos.x + ballRadius >= blockLeft && ballPos.x - ballRadius <= blockRight && ballPos.y + ballRadius >= blockTop && ballPos.y - ballRadius <= blockBottom ) {
+        const ballCollidesX = ballPos.x + ballRadius >= blockLeft && ballPos.x - ballRadius <= blockRight;
+        const ballCollidesY = ballPos.y + ballRadius >= blockTop && ballPos.y - ballRadius <= blockBottom;
+        
+        if (ballCollidesX && ballCollidesY) {
             switch (blocks[i][j].durability) {
               case 4:
                 points += 50;
@@ -186,18 +189,23 @@ const drawBall = () => {
               case 1: 
                 points += 100;
             }
-            // Determine which side of the block was hit
-            if ( ballPos.x >= blockLeft && ballPos.x <= blockRight) {
+            
+            // Determine which side of the block was hit and bounce accordingly
+            // Only decrement durability once per collision
+            const ballCenterInBlockX = ballPos.x >= blockLeft && ballPos.x <= blockRight;
+            const ballCenterInBlockY = ballPos.y >= blockTop && ballPos.y <= blockBottom;
+            
+            if (ballCenterInBlockX) {
               velocity.changeDirY();
-              blocks[i][j].durability -= 1;
-              console.log("Change Y");
+            } else if (ballCenterInBlockY) {
+              velocity.changeDirX();
+            } else {
+              // Corner hit - bounce both directions
+              velocity.changeDirX();
+              velocity.changeDirY();
             }
             
-            if ( ballPos.y <= blockBottom && ballPos.y >= blockTop) {
-              velocity.changeDirX();
-              blocks[i][j].durability -= 1;
-              console.log("Change X");
-            }
+            blocks[i][j].durability -= 1;
         }
       }
     }
